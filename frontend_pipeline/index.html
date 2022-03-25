@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+      
+<head>
+    <title>
+        Creating Search Bar
+    </title>
+      
+    <!-- linking the stylesheet(CSS) -->
+    <link rel="stylesheet" type="text/css" href="./style.css">
+    <script src="./js/sdk/lib/axios/dist/axios.standalone.js"></script>
+    <script src="./js/sdk/lib/CryptoJS/rollups/hmac-sha256.js"></script>
+    <script src="./js/sdk/lib/CryptoJS/rollups/sha256.js"></script>
+    <script src="./js/sdk/lib/CryptoJS/components/hmac.js"></script>
+    <script src="./js/sdk/lib/CryptoJS/components/enc-base64.js"></script>
+    <script src="./js/sdk/lib/url-template/url-template.js"></script>
+    <script src="./js/sdk/lib/apiGatewayCore/sigV4Client.js"></script>
+    <script src="./js/sdk/lib/apiGatewayCore/apiGatewayClient.js"></script>
+    <script src="./js/sdk/lib/apiGatewayCore/simpleHttpClient.js"></script>
+    <script src="./js/sdk/lib/apiGatewayCore/utils.js"></script>
+
+    <script src="./js/sdk/apigClient.js"></script>
+</head>
+  
+<body>
+      
+
+    <div class="form-container">
+        <form class="form">
+            <input id="search-content" type="text" class="input" placeholder="search..."/>
+            <button id="search-button" type="button" class="search-results">search</button>
+            <button id="clear-button" type="button" class="clear-results">clear</button>
+        </form>
+
+    </div>
+
+    <div class="upload-image">
+        <input type="file" id="file" name="filename">
+        <input type="text" id="custom-label">
+        <button type="button" id="upload-photo">Submit</button>
+    </div>
+
+    <div class="results-container">
+        <ul class="photo-list" id="photo-list">
+        </ul>
+    </div>
+
+    <p>Click on the below button and speak something...</p>
+    <p><button type="button" onclick="runSpeechRecognition()">Speech to Text</button> &nbsp; <span id="action"></span></p>
+    <div id="voice-output" class="hide"></div>
+    <script src="./js/voice.js">
+    </script>
+    <script src="./js/index.js"></script>
+    </script>
+
+    <script>
+        var apigClient = apigClientFactory.newClient()
+    </script>
+    
+</body>
+  
+</html>
