@@ -1,0 +1,376 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: A sample template for photo album
+Parameters:
+  S3Bucket1Name:
+    Description: Name of the S3 Frontend Webpage
+    Type: String
+
+  S3Bucket2Name:
+    Description: Name of the S3 Photo Storage
+    Type: String
+
+  LF1Name:
+    Description: Name of the LF1
+    Type: String
+
+  LF2Name:
+    Description: Name of the LF2
+    Type: String
+
+Resources:
+  S3Bucket1:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref S3Bucket1Name
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+    DeletionPolicy: Retain
+
+
+  BucketPolicy1:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      PolicyDocument:
+        Id: MyPolicy
+        Version: "2012-10-17"
+        Statement:
+        - Sid: PublicReadForGetBucketObjects
+          Effect: Allow
+          Principal: '*'
+          Action: 's3:GetObject'
+          Resource: !Join
+            - ''
+            - - 'arn:aws:s3:::'
+              - !Ref S3Bucket1
+              - /*
+      Bucket: !Ref S3Bucket1
+
+  S3Bucket2:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref S3Bucket2Name
+      AccessControl: PublicRead
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:Put'
+            Function: !GetAtt LambdaFunction1.Arn
+
+  
+  LambdaFunction1:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.9
+      FunctionName: !Ref LF1Name
+      Code:
+        S3Bucket: "hw2-code-bucket"
+        S3Key: "index-photos-cf.zip"
+      Description: "lambda function created by function"
+      MemorySize: 128
+      Environment: 
+        Variables: 
+          Region: "us-east-1"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt IndexPhotoRole.Arn
+      Layers:
+        - arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p39-requests-html:1
+        - arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p39-requests:1
+
+  LambdaFunction2:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.9
+      FunctionName: !Ref LF2Name
+      Code:
+        S3Bucket: "hw2-code-bucket"
+        S3Key: "search-photos-cf.zip"
+      Description: "lambda function created by function"
+      MemorySize: 128
+      Environment: 
+        Variables: 
+          Region: "us-east-1"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt SearchPhotoRole.Arn
+      Layers:
+        - arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p39-requests-html:1
+        - arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p39-requests:1
+
+  LF1InvokePermission: 
+    Type: "AWS::Lambda::Permission"
+    DependsOn: LambdaFunction1
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt LambdaFunction1.Arn
+      Principal: "s3.amazonaws.com"
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !GetAtt S3Bucket2.Arn
+      
+
+
+  BucketPolicy2:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      PolicyDocument:
+        Id: MyPolicy
+        Version: "2012-10-17"
+        Statement:
+        - Sid: PublicReadForGetBucketObjects
+          Effect: Allow
+          Principal: '*'
+          Action: 's3:GetObject'
+          Resource: !Join
+            - ''
+            - - 'arn:aws:s3:::'
+              - !Ref S3Bucket2
+              - /*
+      Bucket: !Ref S3Bucket2
+
+  IndexPhotoRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: Role to provide LF1
+      #Policies:
+      #  - PolicyName: EmbeddedInlinePolicy
+      #    PolicyDocument:
+      #      Version: "2012-10-17"
+      #      Statement:
+      #        - Effect: Allow
+      #          Action: 'cloudformation:*'
+      #          Resource: '*'
+      ManagedPolicyArns:
+        - arn:aws:iam::233542734977:policy/service-role/AWSLambdaBasicExecutionRole-0f93627e-5bd6-4be5-9299-8ea3c7cc2e2c
+        - arn:aws:iam::233542734977:policy/AWS_EC2_CreateNetworkInterface_Permission
+        - arn:aws:iam::233542734977:policy/AWS_S3_Permission
+        - arn:aws:iam::233542734977:policy/OpenSearchAllAccess
+        - arn:aws:iam::aws:policy/AmazonRekognitionFullAccess
+      RoleName: IndexPhotoRoleCf
+
+
+  SearchPhotoRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: Role to provide LF2
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonLexFullAccess
+        - arn:aws:iam::233542734977:policy/AWS_EC2_CreateNetworkInterface_Permission
+        - arn:aws:iam::233542734977:policy/service-role/AWSLambdaBasicExecutionRole-df480058-1018-43fb-a8be-41be5b40fcf8
+        - arn:aws:iam::233542734977:policy/OpenSearchAllAccess
+      RoleName: SearchPhotoRoleCf
+
+    
+  APIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: 'PhotoSearch-cf'
+      Body:
+        swagger: "2.0"
+        info:
+          description: "AI Photo Search application, built during the Cloud and Big Data course\
+            \ at Columbia University."
+          version: "1.0.0"
+          title: "AI Photo Search"
+        host: "6vx72kpgj9.execute-api.us-east-1.amazonaws.com"
+        basePath: "/test"
+        schemes:
+        - "https"
+        paths:
+          /search:
+            get:
+              operationId: "searchPhotos"
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              parameters:
+              - name: "q"
+                in: "query"
+                required: false
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/SearchResponse"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                "500":
+                  description: "500 response"
+                  schema:
+                    $ref: "#/definitions/Error"
+                "403":
+                  description: "403 response"
+                  schema:
+                    $ref: "#/definitions/Error"
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+          /upload/{folder}/{object}:
+            put:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "Content-Type"
+                in: "header"
+                required: false
+                type: "string"
+              - name: "Accept"
+                in: "header"
+                required: false
+                type: "string"
+              - name: "x-amz-meta-customLabels"
+                in: "header"
+                required: false
+                type: "string"
+              - name: "object"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "folder"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+            options:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "object"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "folder"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+        definitions:
+          Error:
+            type: "object"
+            properties:
+              code:
+                type: "integer"
+                format: "int32"
+              message:
+                type: "string"
+          Photo:
+            type: "object"
+            properties:
+              url:
+                type: "string"
+              labels:
+                type: "array"
+                items:
+                  type: "string"
+          SearchResponse:
+            type: "object"
+            properties:
+              results:
+                type: "array"
+                items:
+                  $ref: "#/definitions/Photo"
+
+
+
+  OpenSearchServiceDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: 'photo-search-cf'
+      EngineVersion: 'OpenSearch_1.0'
+      ClusterConfig:
+        DedicatedMasterEnabled: true
+        InstanceCount: '2'
+        ZoneAwarenessEnabled: true
+        InstanceType: 't3.small.search'
+        DedicatedMasterType: 't3.small.search'
+        DedicatedMasterCount: '3'
+      EBSOptions:
+        EBSEnabled: true
+        Iops: '0'
+        VolumeSize: '10'
+        VolumeType: 'gp2'
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: 'Allow'
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: '*'
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      EncryptionAtRestOptions:
+        Enabled: true
+      AdvancedSecurityOptions: 
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions:
+          MasterUserName: 'COMSE6998'
+          MasterUserPassword: 'Comse6998!'
+
+
+
+
+Outputs:
+  WebsiteURL:
+    Value: !GetAtt 
+      - S3Bucket1
+      - WebsiteURL
+    Description: URL for website hosted on S3
+  S3BucketSecureURL:
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !GetAtt 
+          - S3Bucket1
+          - DomainName
+    Description: Name of S3 bucket to hold website content
+
